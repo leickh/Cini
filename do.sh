@@ -3,7 +3,7 @@
 cd $(dirname $0)
 PROJECT_PATH=$(pwd)
 
-BUILD_OPTIONS="-g2 -O2 $BUILD_OPTIONS"
+BUILD_OPTIONS="-g2 -O2 -Wall -Wextra -Wpedantic $BUILD_OPTIONS"
 INCLUDE_PATHS="$PROJECT_PATH/inc-c"
 
 if [[ $CC = "" ]];
@@ -43,7 +43,7 @@ make_static_library() {
 }
 
 case $1 in
-    "" | "build")
+    "" | "b" | "build")
         build_sources
         make_static_library
         ;;
