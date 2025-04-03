@@ -5,7 +5,8 @@
 # IDE-/ editor-files
 .vscode/
 
-.build
+# Build interim files
+.build/
 
 # Object Files
 *.a
