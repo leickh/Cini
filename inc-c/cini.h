@@ -24,14 +24,17 @@ typedef enum
     CINI_GENERIC_INTERNAL_ERROR = -16,
     CINI_LIMITATION_EXCEEDED,
     CINI_ALLOCATION_FAILURE,
+    CINI_NOT_INITIALIZED,
 
     CINI_SUCCESS = 0,
+
 } CiniStatus;
 
 typedef enum
 {
     CINI_FEATURE_CUSTOM_ALLOCATOR = 1,
     CINI_FEATURE_LOG = 1 << 1
+
 } CiniFeature;
 
 typedef void * (*CiniAllocateFn)(
@@ -48,26 +51,21 @@ typedef void (*CiniFreeFn)(
 
 // ==> Document Management
 
-CiniDocument * cini_new_document();
+CiniDocument * cini_malloc_document();
+
+CiniDocument * cini_new_document(
+    CiniAllocateFn fn_alloc,
+    CiniFreeFn fn_free,
+    void *userdata
+);
 
 void cini_free_document(
     CiniDocument *document
 );
 
-void cini_init_document(
+void cini_reset_document(
     CiniDocument *document
 );
-
-void cini_destroy_document(
-    CiniDocument *document
-);
-
-/// @brief Get the `sizeof()` of the internal `CiniDocument` struct.
-///        This is particularly useful when using own allocators.
-/// @return Result of `sizeof(CiniDocument)` with the actual fields.
-/// @note This is only necessary because the details of the structure
-///       are hidden in the `cini.h` - header.
-size_t cini_get_document_size();
 
 void cini_set_allocator(
     CiniDocument *document,
