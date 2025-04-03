@@ -2,11 +2,10 @@
 # Local Convenience folder to withhold data
 .private/
 
-# CMake Files
-CMakeFiles/
-Makefile
-cmake_install.cmake
-CMakeCache.txt
+# IDE-/ editor-files
+.vscode/
+
+.build
 
 # Object Files
 *.a
