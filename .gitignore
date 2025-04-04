@@ -17,3 +17,6 @@
 *.obj
 *.so
 
+# Debug information / Memory dumps
+vgcore.*
+
