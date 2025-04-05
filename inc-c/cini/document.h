@@ -27,7 +27,7 @@ typedef enum
 
 struct CiniField
 {
-    CiniField *next;
+    CiniField *next_in_section;
 
     uint_fast16_t applicable_types;
     uint_fast16_t len_key;
@@ -39,9 +39,13 @@ struct CiniField
 
 struct CiniSection
 {
-    CiniSection *next;
-    
+    CiniSection *linear_next;
+
     char *name;
+    uint_least32_t sub_sections_capacity;
+    uint_least32_t num_sub_sections;
+    CiniSection **sub_sections;
+
     CiniField *first_field;
 };
 

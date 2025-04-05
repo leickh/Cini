@@ -47,7 +47,18 @@ CiniDocument * cini_new_document(
     );
     document->fn_alloc = fn_alloc;
     document->fn_free = fn_free;
-    // document->
+    document->num_sections = 1;
+    document->first_section = cini_arena_alloc(
+        document->arena,
+        sizeof(CiniSection)
+    );
+    document->root_section = document->first_section;
+    document->root_section->name = "$";
+    document->root_section->first_field = NULL;
+    document->root_section->linear_next = NULL;
+    document->root_section->sub_sections_capacity = 0;
+    document->root_section->num_sub_sections = 0;
+    document->root_section->sub_sections = NULL;
 
     return document;
 }
