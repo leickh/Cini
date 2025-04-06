@@ -90,6 +90,8 @@ uint_fast32_t cini_internal_split_section_string(
     );
     if ( ! num_levels)
     {
+        puts("Syntax Error: Empty section header.");
+        parser->status = CINI_SYNTAX_ERROR;
         return 0;
     }
     *buffer = cini_arena_alloc(
@@ -236,6 +238,9 @@ uint_fast32_t cini_internal_parse_section_header(
         );
         if (character == '\n')
         {
+            /// @todo Find the next syntactically correct thing and
+            ///       continue parsing there, but keep the status.
+
             puts("Syntax Error: Section header not closed.");
             parser->status = CINI_SYNTAX_ERROR;
             return 0;
@@ -261,22 +266,149 @@ uint_fast32_t cini_internal_parse_section_header(
     return len_raw_string;
 }
 
-uint_fast32_t cini_internal_parse_section(
-    struct CiniParser *parser,
-    uint_fast32_t offset
+CiniSection * cini_internal_find_sub_section(
+    CiniDocument *document,
+    CiniSection *section,
+    const char *sub_section_name
 ) {
-    char **section_name = NULL;
-    uint_fast32_t status = cini_internal_parse_section_header(
-        parser,
-        offset,
-        &section_name
-    );
-    if ( ! status)
+    uint_fast32_t sub_section_index = 0;
+    while (sub_section_index < section->num_sub_sections)
     {
-        return 0;
+        if (
+            ! strcmp(
+                section->sub_sections[sub_section_index]->name,
+                sub_section_name
+        )) {
+            return section->sub_sections[sub_section_index];
+        }
+        ++sub_section_index;
     }
-    cini_internal_write_string_list(section_name);
-    return status;
+    return NULL;
+}
+
+CiniSection * cini_internal_find_section(
+    CiniDocument *document,
+    const char **path
+) {
+    // The section currently deepest into the
+    // hierarchy that matches the query.
+    CiniSection *section = document->root_section;
+    uint_fast32_t path_element_index = 0;
+    while (path[path_element_index])
+    {
+        section = cini_internal_find_sub_section(
+            document,
+            section,
+            path[path_element_index]
+        );
+        if ( ! section)
+        {
+            break;
+        }
+        ++path_element_index;
+    }
+    return section;
+}
+
+CiniSection * cini_internal_add_sub_section(
+    CiniDocument *document,
+    CiniSection *section,
+    const char *name
+) {
+    if(section->sub_sections == NULL)
+    {
+        section->sub_sections_capacity = 4;
+        section->sub_sections = cini_arena_alloc(
+            document->arena,
+            section->sub_sections_capacity
+          * sizeof(CiniSection *)
+        );
+    }
+    if (
+        section->num_sub_sections
+      >= section->sub_sections_capacity
+    ) {
+        section->sub_sections_capacity *= 2;
+        CiniSection **resized_sub_sections = cini_arena_alloc(
+            document->arena,
+            section->sub_sections_capacity * sizeof(CiniSection *)
+        );
+        memcpy(
+            resized_sub_sections,
+            section->sub_sections,
+            section->num_sub_sections * sizeof(CiniSection *)
+        );
+        section->sub_sections = resized_sub_sections;
+    }
+    CiniSection *sub_section = cini_arena_alloc(
+        document->arena,
+        sizeof(CiniSection)
+    );
+    sub_section->name = cini_arena_copy_string(
+        document->arena,
+        name
+    );
+    memset(sub_section, 0, sizeof(CiniSection));
+    section->sub_sections[section->num_sub_sections] = sub_section;
+    ++section->num_sub_sections;
+    return sub_section;
+}
+
+CiniSection * cini_internal_force_create_section(
+    CiniDocument *document,
+    const char **path
+) {
+    // The section currently deepest into the
+    // hierarchy that matches the query.
+    CiniSection *section = document->root_section;
+    uint_fast32_t path_element_index = 0;
+    while (path[path_element_index])
+    {
+        CiniSection *sub_section = cini_internal_find_sub_section(
+            document,
+            section,
+            path[path_element_index]
+        );
+        if ( ! sub_section)
+        {
+            break;
+        }
+        section = sub_section;
+        ++path_element_index;
+    }
+    while (path[path_element_index])
+    {
+        CiniSection *sub_section = cini_internal_add_sub_section(
+            document,
+            section,
+            path[path_element_index]
+        );
+        if ( ! sub_section)
+        {
+            /// @todo This indicates an allocation failure.
+        }
+        section = sub_section;
+        ++path_element_index;
+    }
+    return section;
+}
+
+CiniSection * cini_internal_find_or_create_section(
+    CiniDocument *document,
+    const char **path
+) {
+    CiniSection *section = cini_internal_find_section(
+        document,
+        path
+    );
+    if (section)
+    {
+        return section;
+    }
+    return cini_internal_force_create_section(
+        document,
+        path
+    );
 }
 
 int_fast8_t cini_parse_source_limited(
@@ -284,11 +416,19 @@ int_fast8_t cini_parse_source_limited(
     const char *source,
     uint_fast32_t len_source
 ) {
+    if (buffer->root_section == NULL)
+    {
+        puts("Not Initialized: Documents must be initialized before parsing.");
+        return CINI_NOT_INITIALIZED;
+    }
+
     struct CiniParser parser;
     parser.document = buffer;
     parser.status = CINI_SUCCESS;
     parser.source = source;
     parser.len_source = len_source;
+
+    CiniSection *current_section = parser.document->root_section;
 
     uint_fast32_t offset = 0;
     while (offset < parser.len_source)
@@ -306,15 +446,25 @@ int_fast8_t cini_parse_source_limited(
         }
         if (character == '[')
         {
-            int_fast32_t status = cini_internal_parse_section(
+            char **section_path = NULL;
+
+            // 'status' contains the number of section path elements
+            // OR zero, if the parsing process failed there.
+            uint_fast32_t status = cini_internal_parse_section_header(
                 &parser,
-                offset
+                offset,
+                &section_path
             );
-            if (status <= 0)
+            if (status == 0)
             {
                 break;
             }
             offset += status;
+            CiniSection *section = cini_internal_find_or_create_section(
+                parser.document,
+                (const char **) section_path
+            );
+            current_section = section;
         }
         offset += len_character;
     }
@@ -331,7 +481,7 @@ int_fast8_t cini_parse_source(
     {
         return CINI_INVALID_POINTER;
     }
-    // Pass full source to cini_parse_source_part
+    // Pass full source to cini_parse_source_limited
 
     size_t len_source = strlen(source);
     return cini_parse_source_limited(
