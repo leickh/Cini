@@ -9,17 +9,34 @@
 
 typedef struct CiniArena CiniArena;
 
+typedef void * (*CiniAllocateFn)(
+    uint_fast32_t amount,
+    void *userdata
+);
+
+typedef void (*CiniFreeFn)(
+    void *pointer,
+    void *userdata
+);
+
 struct CiniArena
 {
     uint32_t capacity;
     uint32_t usage;
     void *allocation;
 
+    CiniAllocateFn fn_allocate;
+    CiniFreeFn fn_free;
+    void *allocator;
+
     CiniArena *continuation;
 };
 
 CiniArena * cini_new_arena(
-    uint32_t capacity
+    uint32_t capacity,
+    CiniAllocateFn fn_alloc,
+    CiniFreeFn fn_free,
+    void *allocator
 );
 
 void cini_free_arena(
@@ -79,18 +96,28 @@ typedef enum
 
 } CiniAsciiSign;
 
-uint32_t cini_extract_utf8(
+uint_least32_t cini_extract_utf8(
     const char *string,
-    uint32_t offset,
-    uint32_t *remaining
+    uint_fast32_t offset,
+    uint_fast32_t *remaining
 );
 
-bool cini_check_newline(const char *string, uint32_t offset, uint32_t *next);
+bool cini_check_newline(const char *string, uint_fast32_t offset, uint_fast32_t *next);
 bool cini_is_lowercase(uint32_t rune);
 bool cini_is_uppercase(uint32_t rune);
 bool cini_is_letter(uint32_t rune);
 bool cini_is_digit(uint32_t rune);
 bool cini_is_sign(uint32_t rune);
+
+bool cini_is_whitespace(
+    uint_least32_t rune
+);
+
+uint_fast32_t cini_count_repetitions(
+    const char *string,
+    uint_fast32_t len_string,
+    uint_least32_t base_character
+);
 
 bool cini_rune_is_ascii_special(uint32_t rune);
 CiniAsciiSign cini_rune_to_sign_enum(uint32_t rune);

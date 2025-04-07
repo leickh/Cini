@@ -21,30 +21,45 @@ int64_t cini_max_i64(
 
 // ==> Allocators
 
-CiniArena * cini_new_arena(uint32_t capacity)
-{
-    CiniArena *arena = malloc(32 + capacity);
-    arena->allocation = ((uint8_t *)arena) + 32;
+CiniArena * cini_new_arena(
+    uint32_t capacity,
+    CiniAllocateFn fn_alloc,
+    CiniFreeFn fn_free,
+    void *allocator
+) {
+    CiniArena *arena = fn_alloc(
+        cini_max_i64(64, sizeof(CiniArena))
+      + capacity, allocator
+    );
+    arena->allocation =
+        ((uint8_t *)arena)
+      + cini_max_i64(64, sizeof(CiniArena));
     arena->capacity = capacity;
     arena->usage = 0;
+    arena->fn_allocate = fn_alloc;
+    arena->fn_free = fn_free;
+    arena->allocator = allocator;
     arena->continuation = NULL;
     return arena;
 }
 
-void cini_free_arena(CiniArena *arena)
-{
+void cini_free_arena(
+    CiniArena *arena
+) {
     if (arena->continuation)
     {
         cini_free_arena(arena->continuation);
     }
-    free(arena);
+    arena->fn_free(arena, arena->allocator);
 }
 
-void * cini_arena_alloc(CiniArena *arena, uint32_t amount)
-{
+void * cini_arena_alloc(
+    CiniArena *arena,
+    uint32_t amount
+) {
     if ((arena->usage + amount) >= arena->capacity)
     {
-        if (!arena->continuation)
+        if ( ! arena->continuation)
         {
             // Allocate a new arena that is double the size of
             // the current one, but *at least* double the size
@@ -52,7 +67,11 @@ void * cini_arena_alloc(CiniArena *arena, uint32_t amount)
             arena->continuation = cini_new_arena(
                 cini_max_i64(
                     arena->usage * 2,
-                    amount * 2));
+                    amount * 2),
+                arena->fn_allocate,
+                arena->fn_free,
+                arena->allocator
+            );
         }
         return cini_arena_alloc(
             arena->continuation,
@@ -159,10 +178,10 @@ uint32_t cini_postprocess_utf8_bytes(
     return result;
 }
 
-uint32_t cini_extract_utf8(
+uint_least32_t cini_extract_utf8(
     const char *string,
-    uint32_t offset,
-    uint32_t *remaining
+    uint_fast32_t offset,
+    uint_fast32_t *remaining
 ) {
     if (string[offset] == 0x00)
     {
@@ -191,12 +210,12 @@ uint32_t cini_extract_utf8(
 
 // ==> ASCII range checks
 
-bool cini_check_newline(const char *string, uint32_t offset, uint32_t *next)
+bool cini_check_newline(const char *string, uint_fast32_t offset, uint_fast32_t *next)
 {
-    uint32_t subject = cini_extract_utf8(string, offset, &offset);
+    uint_fast32_t subject = cini_extract_utf8(string, offset, &offset);
     if (subject == '\r')
     {
-        uint32_t offset_backup = offset;
+        uint_fast32_t offset_backup = offset;
         if (cini_extract_utf8(string, offset, NULL) != '\n')
             (*next) = offset_backup;
         return true;
@@ -332,6 +351,45 @@ bool cini_is_sign(uint32_t rune)
         return true;
     }
     return false;
+}
+
+bool cini_is_whitespace(
+    uint_least32_t rune
+) {
+    if (rune == ' ')
+    {
+        return true;
+    }
+    if (rune == '\t')
+    {
+        return true;
+    }
+    return false
+}
+
+uint_fast32_t cini_count_repetitions(
+    const char *string,
+    uint_fast32_t len_string,
+    uint_least32_t base_character
+) {
+    uint_fast32_t num_repetitions = 0;
+    uint_fast32_t offset = 0;
+    while (offset < len_string)
+    {
+        uint_fast32_t len_character;
+        uint_least32_t character = cini_extract_utf8(
+            string,
+            offset,
+            &len_character
+        );
+        if (character != base_character)
+        {
+            break;
+        }
+        ++num_repetitions;
+        ++len_character;
+    }
+    return num_repetitions;
 }
 
 CiniAsciiSign cini_rune_to_sign_enum(uint32_t rune)

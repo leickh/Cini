@@ -32,8 +32,7 @@ typedef enum
 
 typedef enum
 {
-    CINI_FEATURE_CUSTOM_ALLOCATOR = 1,
-    CINI_FEATURE_LOG = 1 << 1
+    CINI_FEATURE_LOG = 1
 
 } CiniFeature;
 
@@ -67,13 +66,6 @@ void cini_reset_document(
     CiniDocument *document
 );
 
-void cini_set_allocator(
-    CiniDocument *document,
-    CiniAllocateFn fn_allocate,
-    CiniFreeFn fn_free,
-    void *userdata
-);
-
 void cini_set_feature(
     CiniDocument *document,
     CiniFeature feature,
@@ -99,10 +91,10 @@ int_fast8_t cini_parse_source(
     const char *source
 );
 
-int_fast8_t cini_parse_source_part(
+int_fast8_t cini_parse_source_limited(
     CiniDocument *buffer,
-    const char *source_start,
-    uint_fast32_t len_part
+    const char *source,
+    uint_fast32_t len_source
 );
 
 int_fast8_t cini_parse_from_path(

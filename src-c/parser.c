@@ -218,6 +218,8 @@ uint_fast32_t cini_internal_parse_section_header(
     uint_fast32_t offset,
     char ***section_path
 ) {
+    uint_fast32_t name_start = offset;
+    
     // Jump over the opening square bracket
 
     uint_fast32_t len_character;
@@ -228,7 +230,6 @@ uint_fast32_t cini_internal_parse_section_header(
     );
     offset += len_character;
 
-    uint_fast32_t name_start = offset;
     while (offset < parser->len_source)
     {
         character = cini_extract_utf8(
@@ -264,6 +265,86 @@ uint_fast32_t cini_internal_parse_section_header(
         return 0;
     }
     return len_raw_string;
+}
+
+uint_fast32_t cini_internal_parse_field(
+    struct CiniParser *parser,
+    uint_fast32_t offset,
+    CiniSection *active_section
+) {
+    uint_fast32_t start_offset = offset;
+
+    // Jump over all possible whitespaces in front of the key
+
+    uint_fast32_t len_character;
+    uint_least32_t character;
+    
+    while (offset < parser->len_source)
+    {
+        character = cini_extract_utf8(
+            parser->source,
+            offset,
+            &len_character
+        );
+        if ( ! cini_is_whitespace(character))
+        {
+            break;
+        }
+        ++len_character;
+    }
+
+    // Find equals sign
+
+    uint_fast32_t key_start = offset;
+    while (offset < parser->len_source)
+    {
+        character = cini_extract_utf8(
+            parser->source,
+            offset,
+            &len_character
+        );
+        if (cini_is_whitespace(character))
+        {
+            break;
+        }
+        offset += len_character;
+    }
+    if (parser->source[offset] == '=')
+    {
+        return offset;
+    }
+    uint_fast32_t equals_position = offset;
+
+    // Go back to the last character of the key
+    
+    while (offset < parser->len_source)
+    {
+        character = cini_extract_utf8(
+            parser->source,
+            offset,
+            &len_character
+        );
+        if (cini_is_whitespace(character))
+        {
+            break;
+        }
+        offset += len_character;
+    }
+
+    CiniField field;
+    field.len_key = offset - key_start;
+    field.key = cini_arena_alloc(
+        parser->document->arena,
+        field.len_key + 1
+    );
+    memcpy(
+        field.len_key,
+        &parser->source[key_start],
+        field.len_key
+    );
+    field.key[field.len_key] = 0;
+
+    return 0;
 }
 
 CiniSection * cini_internal_find_sub_section(
